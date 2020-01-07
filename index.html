@@ -1,0 +1,667 @@
+<html>
+
+<head>
+<title>ICG WebGL &mdash; HW1</title>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+
+<script type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="webgl-utils.js"></script>
+<script type="text/javascript" src="dat.gui.js"></script>
+
+<script id="fragmentShader" type="fragment">
+    #extension GL_OES_standard_derivatives : enable
+    precision mediump float;
+    
+    varying vec3 normalLerp;
+    varying vec3 vertexPos;
+    varying vec4 fragcolor;
+    varying vec2 shaderMode;
+    
+    vec3 normalFlat;
+    
+    const float Ka = 0.3;
+    const float Kd = 0.4;
+    const float Ks = 0.7;
+    const int lightNum = 3;
+    vec3 lightPos[lightNum];
+    vec3 lightColor[lightNum];
+    void main(void) {
+        if(shaderMode[0] == 2.0)
+        {
+            gl_FragColor = fragcolor;
+        }
+        else {
+            //Flat normal
+            vec3 U = dFdx(vertexPos);                     
+            vec3 V = dFdy(vertexPos);                 
+            normalFlat = cross(U,V);
+        
+            //init lights
+            lightPos[0] = vec3(200.0,100.0,10.0);
+            lightColor[0] = vec3(1.0, 1.0, 1.0);
+        
+            lightPos[1] = vec3(-200.0,100.0,10.0);
+            lightColor[1] = vec3(1.0, 1.0, 1.0);
+        
+            lightPos[2] = vec3(0,-100.0,50.0);
+            lightColor[2] = vec3(1.0, 1.0, 1.0);
+        
+            //init finalColor
+            vec3 finalColor = vec3(0.0,0.0,0.0);
+        
+            //ambient
+            vec3 ambientColor = Ka * vec3(fragcolor.xyz);
+            finalColor += ambientColor;
+        
+            //diffuse and specular
+            for(int i = 0; i < lightNum; i++) {
+                vec3 normal;
+                if(shaderMode[0] == 0.0)
+                {
+                    normal = normalize(normalFlat);
+                }
+                else if(shaderMode[0] == 1.0)
+                {
+                    normal = normalize(normalLerp);
+                }
+                vec3 lightDir = normalize(lightPos[i] - vertexPos);
+                vec3 reflectDir = reflect(-lightDir, normal);
+                vec3 viewDir = normalize(-vertexPos);
+            
+                float diffuseAngle = max(dot(lightDir,normal), 0.0);
+                float specularAnglePower = 0.0;
+
+                if(diffuseAngle > 0.0) {
+                    float specAngle = max(dot(reflectDir, viewDir), 0.0);
+                    specularAnglePower = pow(specAngle, 4.0);
+                }
+                vec3 diffuseColor = lightColor[i] * Kd * diffuseAngle * vec3(fragcolor.xyz); 
+                vec3 specularReflection = Ks * specularAnglePower * lightColor[i];
+                finalColor += diffuseColor;
+                finalColor += specularReflection;
+            }
+        
+            gl_FragColor = vec4(finalColor, 1.0);
+        }
+    }
+</script>
+
+<script id="vertexShader" type="vertex"> 
+    attribute vec3 aVertexPosition;
+    attribute vec2 aTextureCoord;
+    attribute vec3 aNormal;
+    attribute vec3 aFrontColor;
+    
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat4 uNormalMatrix;
+    uniform sampler2D uSampler;
+    uniform vec2 uShaderMode;
+
+    varying vec3 vertexPos;
+    varying vec3 normalLerp;
+	varying vec4 fragcolor;
+    varying vec2 shaderMode;
+
+    const float Ka = 0.3;
+    const float Kd = 0.4;
+    const float Ks = 0.7;
+    const int lightNum = 3;
+    vec3 lightPos[lightNum];
+    vec3 lightColor[lightNum];
+    void main(void) {
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+        
+        fragcolor = vec4(aFrontColor.rgb, 1.0);
+        
+        vec4 vertPos4 = uMVMatrix * vec4(aVertexPosition, 1.0);
+        vertexPos = vec3(vertPos4) / vertPos4.w;
+        
+        normalLerp = vec3(uNormalMatrix * vec4(aNormal, 1.0));
+        
+        shaderMode = uShaderMode;
+        if(shaderMode[0] == 2.0) {
+            //Ground
+            //init lights
+            lightPos[0] = vec3(200.0,100.0,10.0);
+            lightColor[0] = vec3(1.0, 1.0, 1.0);
+        
+            lightPos[1] = vec3(-200.0,100.0,10.0);
+            lightColor[1] = vec3(1.0, 1.0, 1.0);
+        
+            lightPos[2] = vec3(0,-100.0,50.0);
+            lightColor[2] = vec3(1.0, 1.0, 1.0);
+        
+            //init finalColor
+            vec3 finalColor = vec3(0.0,0.0,0.0);
+        
+            //ambient
+            vec3 ambientColor = Ka * vec3(aFrontColor.xyz);
+            finalColor += ambientColor;
+        
+            //diffuse and specular
+            for(int i = 0; i < lightNum; i++) {
+                vec3 normal;
+                normal = normalize(normalLerp);
+            
+                vec3 lightDir = normalize(lightPos[i] - vertexPos);
+                vec3 reflectDir = reflect(-lightDir, normal);
+                vec3 viewDir = normalize(-vertexPos);
+            
+                float diffuseAngle = max(dot(lightDir,normal), 0.0);
+                float specularAnglePower = 0.0;
+
+                if(diffuseAngle > 0.0) {
+                    float specAngle = max(dot(reflectDir, viewDir), 0.0);
+                    specularAnglePower = pow(specAngle, 4.0);
+                }
+                vec3 diffuseColor = lightColor[i] * Kd * diffuseAngle * vec3(aFrontColor.xyz); 
+                vec3 specularReflection = Ks * specularAnglePower * lightColor[i];
+                finalColor += diffuseColor;
+                finalColor += specularReflection;
+            }
+            fragcolor = vec4(finalColor.rgb, 1.0);
+        }
+    }
+</script>
+
+
+<script type="text/javascript">
+
+    var gl;
+
+    function initGL(canvas) {
+        try {
+            gl = canvas.getContext("experimental-webgl");
+            gl.viewportWidth = canvas.width;
+            gl.viewportHeight = canvas.height;
+        } catch (e) {
+        }
+        if (!gl) {
+            alert("Could not initialise WebGL, sorry :-(");
+        }
+        if(!gl.getExtension('OES_standard_derivatives')) 
+        {         
+            throw 'extension not support';     
+        }
+    }
+
+
+    function getShader(gl, id) {
+        var shaderScript = document.getElementById(id);
+        if (!shaderScript) {
+            return null;
+        }
+
+        var str = "";
+        var k = shaderScript.firstChild;
+        while (k) {
+            if (k.nodeType == 3) {
+                str += k.textContent;
+            }
+            k = k.nextSibling;
+        }
+
+        var shader;
+        if (shaderScript.type == "fragment") {
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        } else if (shaderScript.type == "vertex") {
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        } else {
+            return null;
+        }
+
+        gl.shaderSource(shader, str);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+
+        return shader;
+    }
+
+
+    var shaderProgram;
+
+    function initShaders() {
+        var fragmentShader = getShader(gl, "fragmentShader");
+        var vertexShader = getShader(gl, "vertexShader");
+
+        shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Could not initialise shaders");
+        }
+
+        gl.useProgram(shaderProgram);
+
+        shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+        gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+
+        shaderProgram.textureCoordAttribute = gl.getAttribLocation(shaderProgram, "aTextureCoord");
+        gl.enableVertexAttribArray(shaderProgram.textureCoordAttribute);
+        
+        shaderProgram.FrontColorAttribute = gl.getAttribLocation(shaderProgram, "aFrontColor");
+        gl.enableVertexAttribArray(shaderProgram.FrontColorAttribute);
+        
+        shaderProgram.NormalAttribute = gl.getAttribLocation(shaderProgram, "aNormal");
+        gl.enableVertexAttribArray(shaderProgram.NormalAttribute);
+
+        shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
+        shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+        shaderProgram.NormalUniform = gl.getUniformLocation(shaderProgram, "uNormalMatrix");
+        shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
+        shaderProgram.shaderMode = gl.getUniformLocation(shaderProgram, "uShaderMode");
+    }
+
+
+    function handleLoadedTexture(texture) {
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+        gl.generateMipmap(gl.TEXTURE_2D);
+
+        gl.bindTexture(gl.TEXTURE_2D, null);
+    }
+
+    var galvanizedTexture;
+
+    function initTextures() {
+        galvanizedTexture = gl.createTexture();
+        galvanizedTexture.image = new Image();
+        galvanizedTexture.image.onload = function () {
+            handleLoadedTexture(galvanizedTexture)
+        }
+        galvanizedTexture.image.src = /*"galvanizedTexture.jpg"*/"red.jpg";
+    }
+
+
+    var mvMatrix = mat4.create();
+    var pMatrix = mat4.create();
+    var nMatrix = mat4.create();
+
+
+    function setMatrixUniforms() {
+        gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix);
+        gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
+        mat4.set(mvMatrix, nMatrix);
+        mat4.inverse(nMatrix);
+        mat4.transpose(nMatrix);
+        gl.uniformMatrix4fv(shaderProgram.NormalUniform, false, nMatrix);
+    }
+
+    function degToRad(degrees) {
+        return degrees * Math.PI / 180;
+    }
+
+
+    var teapotVertexPositionBuffer;
+    var teapotVertexNormalBuffer;
+    var teapotVertexTextureCoordBuffer;
+    var teapotVertexIndexBuffer;
+
+    function handleLoadedTeapot(teapotData) {
+        teapotVertexNormalBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexNormalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexNormals), gl.STATIC_DRAW);
+        teapotVertexNormalBuffer.itemSize = 3;
+        teapotVertexNormalBuffer.numItems = teapotData.vertexNormals.length / 3;
+
+        teapotVertexTextureCoordBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexTextureCoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexTextureCoords), gl.STATIC_DRAW);
+        teapotVertexTextureCoordBuffer.itemSize = 2;
+        teapotVertexTextureCoordBuffer.numItems = teapotData.vertexTextureCoords.length / 2;
+
+        teapotVertexPositionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexPositionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexPositions), gl.STATIC_DRAW);
+        teapotVertexPositionBuffer.itemSize = 3;
+        teapotVertexPositionBuffer.numItems = teapotData.vertexPositions.length / 3;
+
+        teapotVertexIndexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, teapotVertexIndexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(teapotData.indices), gl.STATIC_DRAW);
+        teapotVertexIndexBuffer.itemSize = 1;
+        teapotVertexIndexBuffer.numItems = teapotData.indices.length;
+    }
+
+
+    function loadTeapot() {
+        var request = new XMLHttpRequest();
+        request.open("GET", "Teapot.json");
+        request.onreadystatechange = function () {
+            if (request.readyState == 4) {
+                handleLoadedTeapot(JSON.parse(request.responseText));
+            }
+        }
+        request.send();
+    }
+    
+    var kangarooVertexPositionBuffer;
+    var kangarooVertexNormalBuffer;
+    var kangarooVertexFrontColorBuffer;
+    var kangarooVertexBackColorBuffer;
+    
+    function handleLoadedKangaroo(Kangaroo) {
+        kangarooVertexNormalBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, kangarooVertexNormalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(Kangaroo.vertexNormals), gl.STATIC_DRAW);
+        kangarooVertexNormalBuffer.itemSize = 3;
+        kangarooVertexNormalBuffer.numItems = Kangaroo.vertexNormals.length / 3;
+
+        kangarooVertexFrontColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, kangarooVertexFrontColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(Kangaroo.vertexFrontcolors), gl.STATIC_DRAW);
+        kangarooVertexFrontColorBuffer.itemSize = 3;
+        kangarooVertexFrontColorBuffer.numItems = Kangaroo.vertexFrontcolors.length / 3;
+
+        kangarooVertexBackColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, kangarooVertexBackColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(Kangaroo.vertexBackcolors), gl.STATIC_DRAW);
+        kangarooVertexBackColorBuffer.itemSize = 3;
+        kangarooVertexBackColorBuffer.numItems = Kangaroo.vertexBackcolors.length / 3;
+
+        kangarooVertexPositionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, kangarooVertexPositionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(Kangaroo.vertexPositions), gl.STATIC_DRAW);
+        kangarooVertexPositionBuffer.itemSize = 3;
+        kangarooVertexPositionBuffer.numItems = Kangaroo.vertexPositions.length / 3;
+    }
+
+
+    function loadKangaroo() {
+        var request = new XMLHttpRequest();
+        request.open("GET", "Kangaroo.json");
+        request.onreadystatechange = function () {
+            if (request.readyState == 4) {
+                handleLoadedKangaroo(JSON.parse(request.responseText));
+            }
+        }
+        request.send();
+    }
+    
+    var CSIEVertexPositionBuffer;
+    var CSIEVertexNormalBuffer;
+    var CSIEVertexFrontColorBuffer;
+    var CSIEVertexBackColorBuffer;
+    
+    function handleLoadedCSIE(CSIE) {
+        CSIEVertexNormalBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, CSIEVertexNormalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(CSIE.vertexNormals), gl.STATIC_DRAW);
+        CSIEVertexNormalBuffer.itemSize = 3;
+        CSIEVertexNormalBuffer.numItems = CSIE.vertexNormals.length / 3;
+
+        CSIEVertexFrontColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, CSIEVertexFrontColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(CSIE.vertexFrontcolors), gl.STATIC_DRAW);
+        CSIEVertexFrontColorBuffer.itemSize = 3;
+        CSIEVertexFrontColorBuffer.numItems = CSIE.vertexFrontcolors.length / 3;
+
+        CSIEVertexBackColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, CSIEVertexBackColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(CSIE.vertexBackcolors), gl.STATIC_DRAW);
+        CSIEVertexBackColorBuffer.itemSize = 3;
+        CSIEVertexBackColorBuffer.numItems = CSIE.vertexBackcolors.length / 3;
+
+        CSIEVertexPositionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, CSIEVertexPositionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(CSIE.vertexPositions), gl.STATIC_DRAW);
+        CSIEVertexPositionBuffer.itemSize = 3;
+        CSIEVertexPositionBuffer.numItems = CSIE.vertexPositions.length / 3;
+    }
+
+    function loadCSIE() {
+        var request = new XMLHttpRequest();
+        request.open("GET", "Longteap.json");
+        request.onreadystatechange = function () {
+            if (request.readyState == 4) {
+                handleLoadedCSIE(JSON.parse(request.responseText));
+            }
+        }
+        request.send();
+    }
+
+    var teapotAngle = 0;
+    var teapotAngleX = 0;
+    var teapotAngleY = 0;
+    var teapotAngleZ = 0;
+    var prevX = 0;
+    var prevY = 0;
+    var prevZ = 0;
+    
+    var controls = new function () {
+        this.transX = 1;
+        this.transY = 0;
+        this.transZ = -40;
+        this.rotateX = 0;
+        this.rotateY = 0;
+        this.rotateZ = 0;
+        this.scaleX = 1;
+        this.scaleY = 1;
+        this.scaleZ = 1;
+        this.shearXY = 0;
+        this.shearXZ = 0;
+        this.shearYX = 0;
+        this.shearYZ = 0;
+        this.shearZX = 0;
+        this.shearZY = 0;
+        this.Kangaroo = 1;
+        this.Teapot = 1;
+        this.Longteap = 1;
+    };
+        
+    function SetGUI() {
+        var gui = new dat.GUI();
+        
+        var f1 = gui.addFolder('Translation');
+        f1.add(controls, 'transX', -15, 15);
+        f1.add(controls, 'transY', -15, 15);
+        f1.add(controls, 'transZ', -55, -35);
+        
+        var f2 = gui.addFolder('Scale');
+        f2.add(controls, 'scaleX', 0.1, 2);
+        f2.add(controls, 'scaleY', 0.1, 2);
+        f2.add(controls, 'scaleZ', 0.1, 2);
+        
+        var f3 = gui.addFolder('Rotation');
+        f3.add(controls, 'rotateX', {Yes:1, NO:0});
+        f3.add(controls, 'rotateY', {Yes:1, NO:0});
+        f3.add(controls, 'rotateZ', {Yes:1, NO:0});
+        
+        var f4 = gui.addFolder('Shear');
+        f4.add(controls, 'shearXY', 0, 1);
+        f4.add(controls, 'shearXZ', 0, 1);
+        f4.add(controls, 'shearYX', 0, 1);
+        f4.add(controls, 'shearYZ', 0, 1);
+        f4.add(controls, 'shearZX', 0, 1);
+        f4.add(controls, 'shearZY', 0, 1);
+        
+        var f5 = gui.addFolder('Shader Mode');
+        f5.add(controls, 'Kangaroo', {Flat:0.0, Phong:1.0, Gouraud:2.0});
+        f5.add(controls, 'Teapot', {Flat:0.0, Phong:1.0, Gouraud:2.0});
+        f5.add(controls, 'Longteap', {Flat:0.0, Phong:1.0, Gouraud:2.0});
+    }
+    
+    
+
+    function drawScene() {
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        if (teapotVertexPositionBuffer == null || teapotVertexNormalBuffer == null || teapotVertexTextureCoordBuffer == null || teapotVertexIndexBuffer == null) {
+            return;
+        }
+        
+
+        mat4.perspective(60, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pMatrix);
+
+        mat4.identity(mvMatrix);
+
+        mat4.translate(mvMatrix, [controls.transX, controls.transY, controls.transZ]);
+        
+        mat4.rotateX(mvMatrix, degToRad(teapotAngleX), mvMatrix);
+        mat4.rotateY(mvMatrix, degToRad(teapotAngleY), mvMatrix);
+        mat4.rotateZ(mvMatrix, degToRad(teapotAngleZ), mvMatrix);
+        //mat4.rotate(mvMatrix, degToRad(teapotAngle), [controls.rotateX,controls.rotateY, controls.rotateZ]);
+  
+        mat4.scale(mvMatrix, [controls.scaleX, controls.scaleY, controls.scaleZ]);
+        
+        var shearMatrix = mat4.create();
+        mat4.identity(shearMatrix);
+        shearMatrix[1] = controls.shearXY;
+        shearMatrix[2] = controls.shearXZ;
+        shearMatrix[4] = controls.shearYX;
+        shearMatrix[6] = controls.shearYZ;
+        shearMatrix[8] = controls.shearZX;
+        shearMatrix[9] = controls.shearZY;
+        mat4.multiply(mvMatrix, shearMatrix, mvMatrix);
+        
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, galvanizedTexture);
+        
+        gl.uniform2fv(shaderProgram.shaderMode, [controls.Teapot,0.0]);
+        
+        gl.uniform1i(shaderProgram.samplerUniform, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexPositionBuffer);
+        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, teapotVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexTextureCoordBuffer);
+        gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, teapotVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+        
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexNormalBuffer);
+        gl.vertexAttribPointer(shaderProgram.NormalAttribute, teapotVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, teapotVertexIndexBuffer);
+        setMatrixUniforms();
+        gl.drawElements(gl.TRIANGLES, teapotVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+        
+        //kangaroo
+        
+        gl.uniform1i(shaderProgram.samplerUniform, 0);
+        gl.uniform2fv(shaderProgram.shaderMode, [controls.Kangaroo,0.0]);
+        gl.bindBuffer(gl.ARRAY_BUFFER, kangarooVertexPositionBuffer);
+        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, kangarooVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, kangarooVertexFrontColorBuffer);
+        gl.vertexAttribPointer(shaderProgram.FrontColorAttribute, kangarooVertexFrontColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+        
+        gl.bindBuffer(gl.ARRAY_BUFFER, kangarooVertexNormalBuffer);
+        gl.vertexAttribPointer(shaderProgram.NormalAttribute, kangarooVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    
+        var KangarooMvMatrix = mat4.create();
+        mat4.identity(KangarooMvMatrix);
+        mat4.translate(KangarooMvMatrix, [-1.25, -0.25, -2]);
+        gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix);
+        gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, KangarooMvMatrix);
+        mat4.set(KangarooMvMatrix, nMatrix);
+        mat4.inverse(nMatrix);
+        mat4.transpose(nMatrix);
+        gl.uniformMatrix4fv(shaderProgram.NormalUniform, false, nMatrix);
+        
+        gl.drawArrays(gl.TRIANGLES, 0, kangarooVertexPositionBuffer.numItems);
+        
+        //csie
+        gl.uniform1i(shaderProgram.samplerUniform, 0);
+        gl.uniform2fv(shaderProgram.shaderMode, [controls.Longteap,0.0]);
+        gl.bindBuffer(gl.ARRAY_BUFFER, CSIEVertexPositionBuffer);
+        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, CSIEVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, CSIEVertexFrontColorBuffer);
+        gl.vertexAttribPointer(shaderProgram.FrontColorAttribute, CSIEVertexFrontColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+        
+        gl.bindBuffer(gl.ARRAY_BUFFER, CSIEVertexNormalBuffer);
+        gl.vertexAttribPointer(shaderProgram.NormalAttribute, CSIEVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    
+        var CSIEMvMatrix = mat4.create();
+        mat4.identity(CSIEMvMatrix);
+        mat4.translate(CSIEMvMatrix, [0.87, 0.39, -1.1]);
+        gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix);
+        gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, CSIEMvMatrix);
+        mat4.set(CSIEMvMatrix, nMatrix);
+        mat4.inverse(nMatrix);
+        mat4.transpose(nMatrix);
+        gl.uniformMatrix4fv(shaderProgram.NormalUniform, false, nMatrix);
+        
+        gl.drawArrays(gl.TRIANGLES, 0, CSIEVertexPositionBuffer.numItems);
+    }
+
+
+    var lastTime = 0;
+    function animate() {
+        var timeNow = new Date().getTime();
+        if (lastTime != 0) {
+            var elapsed = timeNow - lastTime;
+            if(controls.rotateX == 1) {
+                teapotAngleX += 0.03 * elapsed;
+                prevX = teapotAngleX;
+            }
+            else{
+                teapotAngleX = prevX;
+            }
+            
+            if(controls.rotateY == 1) {
+                teapotAngleY += 0.03 * elapsed;
+                prevY = teapotAngleY;
+            }
+            else{
+                teapotAngleY = prevY;
+            }
+            
+            if(controls.rotateZ == 1) {
+                teapotAngleZ += 0.03 * elapsed;
+                prevZ = teapotAngleZ;
+            }
+            else{
+                teapotAngleZ = prevZ;
+            }
+            
+            teapotAngle += 0.03 * elapsed;
+        }
+        lastTime = timeNow;
+    }
+
+
+    function tick() {
+        requestAnimFrame(tick);
+        drawScene();
+        animate();
+    }
+
+
+    function webGLStart() {
+        var canvas = document.getElementById("ICG-canvas");
+        initGL(canvas);
+        initShaders();
+        initTextures();
+        loadTeapot();
+        loadKangaroo();
+        loadCSIE();
+        SetGUI();
+
+        gl.clearColor(0.0, 0.2, 0.2, 1.0);
+        gl.enable(gl.DEPTH_TEST);
+
+        tick();
+    }
+
+</script>
+
+</head>
+
+
+<body onload="webGLStart();">
+  
+    <canvas id="ICG-canvas" style="border: none;" width="900" height="600"></canvas>
+    <br/>
+
+</body>
+
+</html>
